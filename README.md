@@ -1,0 +1,4 @@
+ChanScraper
+===========
+
+Imageboard scraper
