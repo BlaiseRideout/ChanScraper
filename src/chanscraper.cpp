@@ -13,7 +13,8 @@
 #include <gtkmm/entry.h>
 #include <gtkmm/button.h>
 #include <gtkmm/filechooserbutton.h>
-#include <gtkmm/listbox.h>
+#include <gtkmm/treeview.h>
+#include <gtkmm/liststore.h>
 #include <gtkmm/spinbutton.h>
 #include <gtkmm/progressbar.h>
 #include <gtkmm/statusbar.h>
@@ -31,7 +32,8 @@ static Gtk::FileChooserButton *locationFileChooserButton = NULL;
 static Gtk::Button *addButton = NULL;
 static Gtk::Button *removeButton = NULL;
 
-static Gtk::ListBox *threadsList = NULL;
+static Gtk::TreeView *threadsTreeView = NULL;
+static Glib::RefPtr<Gtk::ListStore> threadsListStore;
 
 static Gtk::SpinButton *intervalSpinButton = NULL;
 static Gtk::Button *intervalButton = NULL;
@@ -100,10 +102,10 @@ static void downloadThreads() {
 			std::cout << statusBarText << std::endl;
 		}
 		updateStatusbarDispatcher();
-		if(!boost::filesystem::is_directory(boost::filesystem::path(folder + "/" + std::to_string(i->no))) && !boost::filesystem::create_directory(boost::filesystem::path(folder + "/" + std::to_string(i->no)))) {
+		if(!boost::filesystem::is_directory(boost::filesystem::path(folder)) && !boost::filesystem::create_directory(boost::filesystem::path(folder))) {
 			{
 				Glib::Mutex::Lock lock(mutex);
-				statusBarText = "Couldn't open folder " + folder + "/" + std::to_string(i->no);
+				statusBarText = "Couldn't open folder " + folder;
 				std::cerr << statusBarText << std::endl;
 			}
 			updateStatusbarDispatcher();
@@ -121,7 +123,7 @@ static void downloadThreads() {
 			updateStatusbarDispatcher();
 		}
 		for(auto post = i->posts.begin(); post != i->posts.end(); ++post) {
-			if(post->filename != "" && !boost::filesystem::exists(boost::filesystem::path(folder + std::string("/") + std::to_string(i->no) + "/" + std::to_string(post->tim) + post->ext))) {
+			if(post->filename != "" && !boost::filesystem::exists(boost::filesystem::path(folder + "/" + std::to_string(post->tim) + post->ext))) {
 				{ 
 					Glib::Mutex::Lock lock(mutex);
 					if(!downloading)
@@ -132,7 +134,7 @@ static void downloadThreads() {
 				updateStatusbarDispatcher();
 				fourchan::Image image = post->getImage();
 
-				image.writeToFile(folder + std::string("/") + std::to_string(i->no) + "/" + std::to_string(post->tim) + post->ext);
+				image.writeToFile(folder + "/" + std::to_string(post->tim) + post->ext);
 			}
 		}
 		{ 
@@ -166,20 +168,41 @@ static void addButtonClicked() {
 		}
 		threads.push_back(fourchan::Thread(text));
 
-		Gtk::ListBoxRow *row = new Gtk::ListBoxRow();
+		auto row = threadsListStore->append();
+
+		row->set_value(0, threads.size() - 1);
+		row->set_value(1, text);
+		row->set_value(2, locationFileChooserButton->get_filename());
+
+		/*Gtk::ListBoxRow *row = new Gtk::ListBoxRow();
 		row->add_label(text);
+		
 		threadsList->append(*row);
-		threadsList->show_all();
+		threadsList->show_all();*/
 	}
 }
 
 static void removeButtonClicked() {
-	if(threadsList->get_selected_row() != NULL) {
+	auto sel = threadsTreeView->get_selection();
+	
+	if(sel->count_selected_rows() == 0)
+		return;
+
+	auto row = sel->get_selected();
+
+	guint index = 0;
+	row->get_value(0, index);
+
+	threads.erase(threads.begin() + index);
+
+	threadsListStore->erase(row);
+
+	/*if(threadsList->get_selected_row() != NULL) {
 		threads.erase(threads.begin() + threadsList->get_selected_row()->get_index());
 		
 		threadsList->remove(*threadsList->get_selected_row());
 		threadsList->show_all();
-	}
+	}*/
 }
 
 static void updateCounter() {
@@ -259,7 +282,9 @@ static void initWindow() {
 			removeButton->signal_clicked().connect(sigc::ptr_fun(removeButtonClicked));
 
 
-		uiBuilder->get_widget("threadsList", threadsList);
+		uiBuilder->get_widget("threadsTreeView", threadsTreeView);
+
+		threadsListStore = Glib::RefPtr<Gtk::ListStore>::cast_static(uiBuilder->get_object("threadsListStore"));
 
 
 		uiBuilder->get_widget("intervalSpinButton", intervalSpinButton);
