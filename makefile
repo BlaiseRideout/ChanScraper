@@ -6,8 +6,8 @@ OBJ = obj
 CC = g++
 PREFIX = /usr/local
 RES = /usr/share/chanscraper
-LDFLAGS =  `pkg-config libcurl gtkmm-3.0 jsoncpp --libs` -lboost_filesystem -lboost_system
-CFLAGS = --std=c++11 -Wall -O2 `pkg-config libcurl gtkmm-3.0 jsoncpp --cflags`
+LDFLAGS =  `pkg-config libcurl gtkmm-2.4 jsoncpp --libs` -lboost_filesystem -lboost_system
+CFLAGS = --std=c++11 -Wall -O2 `pkg-config libcurl gtkmm-2.4 jsoncpp --cflags`
 INC = -Iinc
 
 _OBJS = 4chan.o ${NAME}.o
