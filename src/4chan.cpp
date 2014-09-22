@@ -1,3 +1,6 @@
+#define _CRT_SECURE_NO_DEPRECATE
+#include <iostream>
+
 #include "4chan.hpp"
 
 #include <regex>

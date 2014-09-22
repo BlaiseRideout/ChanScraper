@@ -4,6 +4,7 @@
 #include <string>
 #include <memory>
 #include <vector>
+#include <stdint.h>
 
 namespace fourchan {
 	class Board;

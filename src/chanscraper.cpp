@@ -8,19 +8,9 @@
 #include <boost/filesystem.hpp>
 
 #include <glibmm.h>
-#include <gtkmm/builder.h>
-#include <gtkmm/window.h>
-#include <gtkmm/entry.h>
-#include <gtkmm/button.h>
-#include <gtkmm/filechooserbutton.h>
-#include <gtkmm/treeview.h>
-#include <gtkmm/liststore.h>
-#include <gtkmm/spinbutton.h>
-#include <gtkmm/progressbar.h>
-#include <gtkmm/statusbar.h>
+#include <gtkmm.h>
 
 static Glib::RefPtr<Gtk::Builder> uiBuilder;
-static Glib::RefPtr<Gtk::Application> app;
 
 static Gtk::Window *window = NULL;
 
@@ -155,7 +145,7 @@ static void downloadButtonClicked() {
 		secondsToNextUpdate = 1;
 	else {
 		if(thread == NULL)
-			thread = Glib::Thread::create(sigc::ptr_fun(downloadThreads));
+			thread = Glib::Thread::create(sigc::ptr_fun(downloadThreads), true);
 	}
 }
 
@@ -240,7 +230,7 @@ static void intervalButtonClicked() {
 	updating = !updating;
 	if(updating) {
 		secondsToNextUpdate = intervalSpinButton->get_value_as_int();
-		thread = Glib::Thread::create(sigc::ptr_fun(autoUpdate));
+		thread = Glib::Thread::create(sigc::ptr_fun(autoUpdate), true);
 		intervalButton->set_label("Stop");
 	}
 	else {
@@ -261,6 +251,7 @@ static bool windowClosed(GdkEventAny *event) {
 static void initWindow() {
 	if(window) {
 		window->set_default_size(500, 500);
+		window->property_title().set_value("ChanScraper");
 		window->signal_delete_event().connect(sigc::ptr_fun(windowClosed));
 
 		uiBuilder->get_widget("threadUrlEntry", threadUrlEntry);
@@ -308,7 +299,9 @@ static void initWindow() {
 }
 
 int main(int argc, char **argv) {
-	app = Gtk::Application::create(argc, argv, "com.blaiseritchie.chanscraper");
+	Glib::OptionContext options;
+
+	Gtk::Main main(argc, argv, options);
 
 	uiBuilder = Gtk::Builder::create();
 	try {
@@ -330,7 +323,7 @@ int main(int argc, char **argv) {
 	uiBuilder->get_widget("mainWindow", window);
 	initWindow();
 
-	int ret = app->run(*window);
+	main.run(*window);
 
-	return ret;
+	return 0;
 }
