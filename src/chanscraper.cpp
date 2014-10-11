@@ -1,5 +1,6 @@
 #include "4chan.hpp"
 
+#include <tuple>
 #include <iostream>
 #include <regex>
 #include <string>
@@ -33,7 +34,7 @@ static Gtk::Statusbar *statusBar = NULL;
 static Gtk::Label *countdownLabel = NULL;
 
 
-static std::vector<fourchan::Thread> threads;
+static std::vector<std::tuple<fourchan::Thread,std::string>> threads;
 static bool updating = false;
 static bool downloading = false;
 static int secondsToNextUpdate = 30;
@@ -43,7 +44,7 @@ static Glib::Dispatcher updateStatusbarDispatcher;
 static Glib::Dispatcher updateCounterDispatcher;
 static guint message;
 
-static Glib::StaticMutex mutex = GLIBMM_STATIC_MUTEX_INIT; 
+static Glib::StaticMutex mutex = GLIBMM_STATIC_MUTEX_INIT;
 
 static void threadUrlClipboardButtonClicked() {
 	Glib::RefPtr<Gtk::Clipboard> clipboard = Gtk::Clipboard::get();
@@ -63,32 +64,13 @@ static void updateStatusBar() {
 
 static void downloadThreads() {
 	downloading = true;
-	std::string folder;
-	{ 
-      Glib::Mutex::Lock lock(mutex);
-      folder = locationFileChooserButton->get_filename();
-    }
-	if(folder == "") {
-		thread = NULL;
-		downloading = false;
-		return;
-	}
-	if(!boost::filesystem::is_directory(boost::filesystem::path(folder)) && !boost::filesystem::create_directory(boost::filesystem::path(folder))) {
-		{ 
-			Glib::Mutex::Lock lock(mutex);
-			statusBarText = "Couldn't open folder " + folder;
-			std::cerr << statusBarText << std::endl;
-	    }
-		updateStatusbarDispatcher();
-		thread = NULL;
-		downloading = false;
-		return;
-	}
-	std::cout << "Downloading " << threads.size() << " threads to " << folder << std::endl;
+	std::cout << "Downloading " << threads.size() << " threads" << std::endl;
 	for(auto i = threads.begin(); i != threads.end(); ++i) {
-		{ 
+		auto thread = std::get<0>(*i);
+		auto folder = std::get<1>(*i);
+		{
 			Glib::Mutex::Lock lock(mutex);
-			statusBarText = "Fetching thread: " + i->url;
+			statusBarText = "Fetching thread: " + thread.url;
 			std::cout << statusBarText << std::endl;
 		}
 		updateStatusbarDispatcher();
@@ -102,19 +84,19 @@ static void downloadThreads() {
 			continue;
 		}
 		try {
-			i->fetchPosts();
+			thread.fetchPosts();
 		}
 		catch(std::runtime_error e) {
 			{
 				Glib::Mutex::Lock lock(mutex);
-				statusBarText = "Failed to fetch thread " + i->url;
+				statusBarText = "Failed to fetch thread " + thread.url;
 				std::cerr << statusBarText << std::endl;
 			}
 			updateStatusbarDispatcher();
 		}
-		for(auto post = i->posts.begin(); post != i->posts.end(); ++post) {
+		for(auto post = thread.posts.begin(); post != thread.posts.end(); ++post) {
 			if(post->filename != "" && !boost::filesystem::exists(boost::filesystem::path(folder + "/" + std::to_string(post->tim) + post->ext))) {
-				{ 
+				{
 					Glib::Mutex::Lock lock(mutex);
 					if(!downloading)
 						return;
@@ -127,9 +109,9 @@ static void downloadThreads() {
 				image.writeToFile(folder + "/" + std::to_string(post->tim) + post->ext);
 			}
 		}
-		{ 
+		{
 			Glib::Mutex::Lock lock(mutex);
-			statusBarText = "Finished fetching thread: " + i->url;
+			statusBarText = "Finished fetching thread: " + thread.url;
 			std::cout << statusBarText << std::endl;
 		}
 		updateStatusbarDispatcher();
@@ -151,12 +133,13 @@ static void downloadButtonClicked() {
 
 static void addButtonClicked() {
 	Glib::ustring text = threadUrlEntry->get_buffer()->get_text();
+	threadUrlEntry->get_buffer()->set_text("");
 	if(std::regex_match((std::string)text, std::regex("^((https?)?://)?boards.4chan.org/[^/]+/thread/\\d+$"))) {
 		for(auto thread = threads.begin(); thread != threads.end(); ++thread) {
-			if(thread->url == text)
+			if(std::get<0>(*thread).url == text)
 				return;
 		}
-		threads.push_back(fourchan::Thread(text));
+		threads.push_back(std::make_tuple(fourchan::Thread(text), locationFileChooserButton->get_filename()));
 
 		auto row = threadsListStore->append();
 
@@ -166,7 +149,7 @@ static void addButtonClicked() {
 
 		/*Gtk::ListBoxRow *row = new Gtk::ListBoxRow();
 		row->add_label(text);
-		
+
 		threadsList->append(*row);
 		threadsList->show_all();*/
 	}
@@ -174,7 +157,7 @@ static void addButtonClicked() {
 
 static void removeButtonClicked() {
 	auto sel = threadsTreeView->get_selection();
-	
+
 	if(sel->count_selected_rows() == 0)
 		return;
 
@@ -189,7 +172,7 @@ static void removeButtonClicked() {
 
 	/*if(threadsList->get_selected_row() != NULL) {
 		threads.erase(threads.begin() + threadsList->get_selected_row()->get_index());
-		
+
 		threadsList->remove(*threadsList->get_selected_row());
 		threadsList->show_all();
 	}*/
@@ -204,7 +187,7 @@ static void updateCounter() {
 
 static void autoUpdate() {
 	while(1) {
-		{ 
+		{
 	      Glib::Mutex::Lock lock(mutex);
 	      if(!updating)
 	      	break;
@@ -212,7 +195,7 @@ static void autoUpdate() {
 
 		if(secondsToNextUpdate <= 0) {
 			downloadThreads();
-			{ 
+			{
 		      Glib::Mutex::Lock lock(mutex);
 		      secondsToNextUpdate = intervalSpinButton->get_value_as_int();
 		    }
